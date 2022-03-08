@@ -54,6 +54,9 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
 private:
+    bool bypass;
+    bool LPActive, HPActive;
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CombFilterBankAudioProcessor)
 };

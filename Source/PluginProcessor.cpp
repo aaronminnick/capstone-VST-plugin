@@ -10,80 +10,47 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-CombFilterBankAudioProcessor::CombFilterBankAudioProcessor()
-#ifndef JucePlugin_PreferredChannelConfigurations
-     : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                     #endif
-                       )
-#endif
-{
-}
-
-CombFilterBankAudioProcessor::~CombFilterBankAudioProcessor()
-{
-}
-
-//==============================================================================
-const juce::String CombFilterBankAudioProcessor::getName() const { return JucePlugin_Name; }
-bool CombFilterBankAudioProcessor::acceptsMidi() const { return false; }
-bool CombFilterBankAudioProcessor::producesMidi() const { return false; }
-bool CombFilterBankAudioProcessor::isMidiEffect() const { return false; }
-double CombFilterBankAudioProcessor::getTailLengthSeconds() const { return 0.0; }
-int CombFilterBankAudioProcessor::getNumPrograms() { return 1; }
-int CombFilterBankAudioProcessor::getCurrentProgram() { return 0; }
-void CombFilterBankAudioProcessor::setCurrentProgram (int index) {}
-const juce::String CombFilterBankAudioProcessor::getProgramName(int index) { return {}; }
-void CombFilterBankAudioProcessor::changeProgramName (int index, const juce::String& newName) {}
-
-//==============================================================================
-template <typename Type>
 class DelayLine
 {
 public:
     //DelayLine() {} //do I need to use explicit constructor?
 
-    void clear() noexcept { std::fill(rawData.begin(), rawData.end(), Type(0)); }
+    void clear() noexcept { std::fill(rawData.begin(), rawData.end(), 0); }
 
     size_t size() const noexcept { return rawData.size(); }
 
-    void resize() (size_t newValue) //do I want to resize buffer? Will cause audio glitch
+    void resize(size_t newValue) //do I want to resize buffer? Will cause audio glitch
     {
         rawData.resize(newValue);
         leastRecentIndex = 0;
-    }
+}
 
-    Type back() const noexcept { return rawData[leastRecentIndex] };
+    float back() const noexcept { return rawData[leastRecentIndex]; }
 
-    Type get() (size_t delayInSamples) const noexcept
+    float get(size_t delayInSamples) const noexcept
     {
         jassert(delayInSamples >= 0 && delayInSamples < size());
         return rawData[(leastRecentIndex + 1 + delayInSamples) % size()];
     }
 
-    void set(size_t delayInSamples, Type newValue) noexcept
+    void set(size_t delayInSamples, float newValue) noexcept
     {
         jassert(delayInSamples >= 0 && delayInSamples < size());
         rawData[(leastRecentIndex + 1 + delayInSamples)] = newValue;
     }
 
-    void push(Type valueToAdd) noexcept
+    void push(float valueToAdd) noexcept
     {
         rawData[leastRecentIndex] = valueToAdd;
         leastRecentIndex = leastRecentIndex == 0 ? size() - 1 : leastRecentIndex - 1;
     }
 
 private:
-    std::vector<Type> rawData;
+    std::vector<float> rawData;
     size_t leastRecentIndex = 0;
 };
 
 //==============================================================================
-template <typename Type, size_t maxNumChannels = 2>
 class Comb
 {
 public:
@@ -94,19 +61,19 @@ public:
         setFeedback(0.5f);
         setLevel(0.25f);
         //need to replace below value with frequency-determined size in samples
-        delayTimeSamples = (size_t) 1024;
+        delayTimeSamples = (size_t)1024;
         for (auto& dline : delayLines) dline.resize(delayTimeSamples);
     }
 
     void prepare(const juce::dsp::ProcessSpec& spec)
     {
         jassert(spec.numChannels <= maxNumChannels);
-        sampleRate = (Type)spec.sampleRate;
+        double sampleRate = spec.sampleRate;
         //I'm leaving out some code about resizing buffer from example
 
         //1: should play around with different types of filters for decay
         //2: need to calculate cutoff frequency based on pitch of comb
-        coefs = juce::dsp::IIR::Coefficients<Type>::makeFirstOrderLowPass(sampleRate, Type(1e3));
+        coefs = juce::dsp::IIR::Coefficients<double>::makeFirstOrderLowPass(sampleRate, 1e3);
 
         for (auto& f : filters)
         {
@@ -121,19 +88,19 @@ public:
         for (auto& dline : delayLines) dline.clear();
     }
 
-    size_t getNumChannels() const noexcept { return delayLines.size() };
+    size_t getNumChannels() const noexcept { return delayLines.size(); }
 
     void toggleActive() noexcept { active = !active; }
 
-    void setFeedback(Type newValue) noexcept
+    void setFeedback(float newValue) noexcept
     {
-        jassert(newValue >= Type(0) && newValue <= Type(1));
+        jassert(newValue >= 0.0f && newValue <= 1.0f);
         feedback = newValue;
     }
 
-    void setLevel(Type newValue) noexcept
+    void setLevel(float newValue) noexcept
     {
-        jassert(newValue >= Type(0) && newValue <= Type(1));
+        jassert(newValue >= 0.0f && newValue <= 1.0f);
         level = newValue;
     }
 
@@ -158,7 +125,7 @@ public:
             for (size_t samp = 0; samp < numSamples; ++samp)
             {
                 auto delayedSample = filter.processSample(dline.get(delayTimeSamples));
-                auto inputSample = input[i];
+                auto inputSample = input[samp];
                 //I don't know enough math to understand hyperbolic tangent, but this is supposed to balance sum
                 //if my comb doesn't work correctly, I suspect this may need closer examination
                 auto dlineInputSample = std::tanh(inputSample + feedback * delayedSample);
@@ -166,24 +133,58 @@ public:
                 //below may need balancing or rethinking if filter doesn't sound right
                 //I may just need to pass delayedSample * level and add inputSample in later dry/wet stage
                 auto outputSample = (inputSample + delayedSample) * level;
-                output[i] = outputSample;
+                output[samp] = outputSample;
             }
         }
     }
 
 private:
     bool active;
-    std::array<DelayLine<Type>, maxNumChannels> delayLines;
-    Type feedback { Type(0) };
-    Type level { Type(0) };
+    static const size_t maxNumChannels{ 2 };
+    std::array<DelayLine, maxNumChannels> delayLines;
+    float feedback{ 0.0f };
+    float level{ 0.0f };
     size_t delayTimeSamples;
 
-    std::array<juce::dsp::IIR::Filter<Type>, maxNumChannels> filters;
-    typename juce::dsp::IIR::Coefficients<Type>::Ptr coefs;
+    std::array<juce::dsp::IIR::Filter<double>, maxNumChannels> filters;
+    typename juce::dsp::IIR::Coefficients<double>::Ptr coefs;
 
-    Type sampleRate { Type(44.1e3) }; //need to update if I make sample rate contingent on DAW settings
+    double sampleRate{ 44.1e3 }; //need to update if I make sample rate contingent on DAW settings
 };
 
+//==============================================================================
+CombFilterBankAudioProcessor::CombFilterBankAudioProcessor()
+#ifndef JucePlugin_PreferredChannelConfigurations
+     : AudioProcessor (BusesProperties()
+                     #if ! JucePlugin_IsMidiEffect
+                      #if ! JucePlugin_IsSynth
+                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
+                      #endif
+                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                     #endif
+                       )
+#endif
+{
+    bypass = true;
+    LPActive, HPActive = false;
+    Comb combs[4];
+}
+
+CombFilterBankAudioProcessor::~CombFilterBankAudioProcessor()
+{
+}
+
+//==============================================================================
+const juce::String CombFilterBankAudioProcessor::getName() const { return JucePlugin_Name; }
+bool CombFilterBankAudioProcessor::acceptsMidi() const { return false; }
+bool CombFilterBankAudioProcessor::producesMidi() const { return false; }
+bool CombFilterBankAudioProcessor::isMidiEffect() const { return false; }
+double CombFilterBankAudioProcessor::getTailLengthSeconds() const { return 0.0; }
+int CombFilterBankAudioProcessor::getNumPrograms() { return 1; }
+int CombFilterBankAudioProcessor::getCurrentProgram() { return 0; }
+void CombFilterBankAudioProcessor::setCurrentProgram (int index) {}
+const juce::String CombFilterBankAudioProcessor::getProgramName(int index) { return {}; }
+void CombFilterBankAudioProcessor::changeProgramName (int index, const juce::String& newName) {}
 
 //==============================================================================
 void CombFilterBankAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -233,6 +234,10 @@ void CombFilterBankAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // prevents feedback if outputs > inputs
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
+
+    bypass = true;
+    LPActive = false;
+    HPActive = false;
 
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
