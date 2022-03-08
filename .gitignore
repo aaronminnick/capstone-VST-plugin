@@ -8,3 +8,5 @@ ipch/
 *.db
 *.db-shm
 *.db-wal
+*.pdb
+Builds/VisualStudio2022/x64/Debug/
