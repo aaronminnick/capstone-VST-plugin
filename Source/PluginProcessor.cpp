@@ -87,28 +87,96 @@ template <typename Type, size_t maxNumChannels = 2>
 class Comb
 {
 public:
-    Comb() //need to think about whether I need to initialize these values
+    Comb() //need to pass freq
     {
-        setFeedback();
-        setLevel();
-        // need to initialize delay length to know delayInSamples delayLines expect
+        //need to think about whether I need to initialize these values or pass them into constructor
+        setFeedback(0.5f);
+        setLevel(0.25f);
+        //need to replace below value with frequency-determined size in samples
+        delayTimeSamples = (size_t) 1024;
+        for (auto& dline : delayLines) dline.resize(delayTimeSamples);
     }
 
     void prepare(const juce::dsp::ProcessSpec& spec)
     {
         jassert(spec.numChannels <= maxNumChannels);
         sampleRate = (Type)spec.sampleRate;
-        // leaving out some code about resizing buffer from example
+        //I'm leaving out some code about resizing buffer from example
 
         //1: should play around with different types of filters for decay
         //2: need to calculate cutoff frequency based on pitch of comb
-        filterCoef = juce::dsp::IIR::Coefficients<Type>::makeFirstOrderLowPass(sampleRate, Type(1e3));
+        coefs = juce::dsp::IIR::Coefficients<Type>::makeFirstOrderLowPass(sampleRate, Type(1e3));
+
+        for (auto& f : filters)
+        {
+            f.prepare(spec);
+            f.coefficients = coefs;
+        }
+    }
+
+    void reset() noexcept
+    {
+        for (auto& f : filters) f.reset();
+        for (auto& dline : delayLines) dline.clear();
+    }
+
+    size_t getNumChannels() const noexcept { return delayLines.size() };
+
+    void setFeedback(Type newValue) noexcept
+    {
+        jassert(newValue >= Type(0) && newValue <= Type(1));
+        feedback = newValue;
+    }
+
+    void setLevel(Type newValue) noexcept
+    {
+        jassert(newValue >= Type(0) && newValue <= Type(1));
+        level = newValue;
+    }
+
+    template <typename ProcessContext>
+    void process(const ProcessContext& context) noexcept
+    {
+        auto& inputBlock = context.getInputBlock();
+        auto& outputBlock = context.getOutputBlock();
+        auto numSamples = outputBlock.getNumSamples();
+        auto numChannels = outputBlock.getNumChannels();
+
+        jassert(inputBlock.getNumSamples() == numSamples);
+        jassert(inputBlock.getNumChannels() == numChannels);
+
+        for (size_t ch = 0; ch < numChannels; ++ch)
+        {
+            auto* input = inputBlock.getChannelPointer(ch);
+            auto* output = outputBlock.getChannelPointer(ch);
+            auto& dline = delayLines[ch];
+            auto& filter = filters[ch];
+
+            for (size_t samp = 0; samp < numSamples; ++samp)
+            {
+                auto delayedSample = filter.processSample(dline.get(delayTimeSamples));
+                auto inputSample = input[i];
+                //I don't know enough math to understand hyperbolic tangent, but this is supposed to balance sum
+                //if my comb doesn't work correctly, I suspect this may need closer examination
+                auto dlineInputSample = std::tanh(inputSample + feedback * delayedSample);
+                dline.push(dlineInputSample);
+                //below may need balancing or rethinking if filter doesn't sound right
+                auto outputSample = (inputSample + delayedSample) * level;
+                output[i] = outputSample;
+            }
+        }
     }
 
 private:
     std::array<DelayLine<Type>, maxNumChannels> delayLines;
+    Type feedback { Type(0) };
+    Type level { Type(0) };
+    size_t delayTimeSamples;
 
+    std::array<juce::dsp::IIR::Filter<Type>, maxNumChannels> filters;
+    typename juce::dsp::IIR::Coefficients<Type>::Ptr coefs;
 
+    Type sampleRate { Type(44.1e3) }; //need to update if I make sample rate contingent on DAW settings
 };
 
 
