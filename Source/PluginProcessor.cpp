@@ -89,6 +89,7 @@ class Comb
 public:
     Comb() //need to pass freq
     {
+        active = false;
         //need to think about whether I need to initialize these values or pass them into constructor
         setFeedback(0.5f);
         setLevel(0.25f);
@@ -121,6 +122,8 @@ public:
     }
 
     size_t getNumChannels() const noexcept { return delayLines.size() };
+
+    void toggleActive() noexcept { active = !active; }
 
     void setFeedback(Type newValue) noexcept
     {
@@ -161,6 +164,7 @@ public:
                 auto dlineInputSample = std::tanh(inputSample + feedback * delayedSample);
                 dline.push(dlineInputSample);
                 //below may need balancing or rethinking if filter doesn't sound right
+                //I may just need to pass delayedSample * level and add inputSample in later dry/wet stage
                 auto outputSample = (inputSample + delayedSample) * level;
                 output[i] = outputSample;
             }
@@ -168,6 +172,7 @@ public:
     }
 
 private:
+    bool active;
     std::array<DelayLine<Type>, maxNumChannels> delayLines;
     Type feedback { Type(0) };
     Type level { Type(0) };
