@@ -29,66 +29,88 @@ CombFilterBankAudioProcessor::~CombFilterBankAudioProcessor()
 }
 
 //==============================================================================
-const juce::String CombFilterBankAudioProcessor::getName() const
-{
-    return JucePlugin_Name;
-}
+const juce::String CombFilterBankAudioProcessor::getName() const { return JucePlugin_Name; }
+bool CombFilterBankAudioProcessor::acceptsMidi() const { return false; }
+bool CombFilterBankAudioProcessor::producesMidi() const { return false; }
+bool CombFilterBankAudioProcessor::isMidiEffect() const { return false; }
+double CombFilterBankAudioProcessor::getTailLengthSeconds() const { return 0.0; }
+int CombFilterBankAudioProcessor::getNumPrograms() { return 1; }
+int CombFilterBankAudioProcessor::getCurrentProgram() { return 0; }
+void CombFilterBankAudioProcessor::setCurrentProgram (int index) {}
+const juce::String CombFilterBankAudioProcessor::getProgramName(int index) { return {}; }
+void CombFilterBankAudioProcessor::changeProgramName (int index, const juce::String& newName) {}
 
-bool CombFilterBankAudioProcessor::acceptsMidi() const
+//==============================================================================
+template <typename Type>
+class DelayLine
 {
-   #if JucePlugin_WantsMidiInput
-    return true;
-   #else
-    return false;
-   #endif
-}
+public:
+    //DelayLine() {} //do I need to use explicit constructor?
 
-bool CombFilterBankAudioProcessor::producesMidi() const
-{
-   #if JucePlugin_ProducesMidiOutput
-    return true;
-   #else
-    return false;
-   #endif
-}
+    void clear() noexcept { std::fill(rawData.begin(), rawData.end(), Type(0)); }
 
-bool CombFilterBankAudioProcessor::isMidiEffect() const
-{
-   #if JucePlugin_IsMidiEffect
-    return true;
-   #else
-    return false;
-   #endif
-}
+    size_t size() const noexcept { return rawData.size(); }
 
-double CombFilterBankAudioProcessor::getTailLengthSeconds() const
-{
-    return 0.0;
-}
+    void resize() (size_t newValue) //do I want to resize buffer? Will cause audio glitch
+    {
+        rawData.resize(newValue);
+        leastRecentIndex = 0;
+    }
 
-int CombFilterBankAudioProcessor::getNumPrograms()
-{
-    return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
-}
+    Type back() const noexcept { return rawData[leastRecentIndex] };
 
-int CombFilterBankAudioProcessor::getCurrentProgram()
-{
-    return 0;
-}
+    Type get() (size_t delayInSamples) const noexcept
+    {
+        jassert(delayInSamples >= 0 && delayInSamples < size());
+        return rawData[(leastRecentIndex + 1 + delayInSamples) % size()];
+    }
 
-void CombFilterBankAudioProcessor::setCurrentProgram (int index)
-{
-}
+    void set(size_t delayInSamples, Type newValue) noexcept
+    {
+        jassert(delayInSamples >= 0 && delayInSamples < size());
+        rawData[(leastRecentIndex + 1 + delayInSamples)] = newValue;
+    }
 
-const juce::String CombFilterBankAudioProcessor::getProgramName (int index)
-{
-    return {};
-}
+    void push(Type valueToAdd) noexcept
+    {
+        rawData[leastRecentIndex] = valueToAdd;
+        leastRecentIndex = leastRecentIndex == 0 ? size() - 1 : leastRecentIndex - 1;
+    }
 
-void CombFilterBankAudioProcessor::changeProgramName (int index, const juce::String& newName)
+private:
+    std::vector<Type> rawData;
+    size_t leastRecentIndex = 0;
+};
+
+//==============================================================================
+template <typename Type, size_t maxNumChannels = 2>
+class Comb
 {
-}
+public:
+    Comb() //need to think about whether I need to initialize these values
+    {
+        setFeedback();
+        setLevel();
+        // need to initialize delay length to know delayInSamples delayLines expect
+    }
+
+    void prepare(const juce::dsp::ProcessSpec& spec)
+    {
+        jassert(spec.numChannels <= maxNumChannels);
+        sampleRate = (Type)spec.sampleRate;
+        // leaving out some code about resizing buffer from example
+
+        //1: should play around with different types of filters for decay
+        //2: need to calculate cutoff frequency based on pitch of comb
+        filterCoef = juce::dsp::IIR::Coefficients<Type>::makeFirstOrderLowPass(sampleRate, Type(1e3));
+    }
+
+private:
+    std::array<DelayLine<Type>, maxNumChannels> delayLines;
+
+
+};
+
 
 //==============================================================================
 void CombFilterBankAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -135,12 +157,7 @@ void CombFilterBankAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
+    // prevents feedback if outputs > inputs
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
