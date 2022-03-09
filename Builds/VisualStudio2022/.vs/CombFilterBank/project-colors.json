@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "ProjectMap": {
+    "860918c5-5d4b-6186-4708-d8c236121774": {
+      "ProjectGuid": "860918c5-5d4b-6186-4708-d8c236121774",
+      "DisplayName": "CombFilterBank_SharedCode",
+      "ColorIndex": 0
+    }
+  },
+  "NextColorIndex": 1
+}
