@@ -29,5 +29,15 @@ private:
     // access the processor object that created it.
     CombFilterBankAudioProcessor& audioProcessor;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CombFilterBankAudioProcessorEditor)
+    //add child components of main component here
+
+    juce::ToggleButton bypass { "Bypass" };
+    juce::Slider preGain, Gain, dryWet;
+
+    class CombComponent;
+    std::vector<CombComponent> combs;
+
+    class LPHPComponent;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(CombFilterBankAudioProcessorEditor)
 };
