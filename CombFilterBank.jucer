@@ -10,6 +10,7 @@
               userNotes="Epicodus capstone project">
   <MAINGROUP id="jktKmA" name="CombFilterBank">
     <GROUP id="{A11DA66B-A39C-BCE8-E4C4-6DEC59FC6D5F}" name="Source">
+      <FILE id="jeuJc7" name="Comb.cpp" compile="1" resource="0" file="Source/Comb.cpp"/>
       <FILE id="FQRvtd" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="Aa52ui" name="PluginProcessor.h" compile="0" resource="0"

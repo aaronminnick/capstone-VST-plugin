@@ -56,6 +56,9 @@ public:
 private:
     bool bypass;
     bool LPActive, HPActive;
+    class DelayLine;
+    class Comb;
+    std::vector<Comb> combs;
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CombFilterBankAudioProcessor)

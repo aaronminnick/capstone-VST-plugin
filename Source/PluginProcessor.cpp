@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-class DelayLine
+class CombFilterBankAudioProcessor::DelayLine
 {
 public:
     //DelayLine() {} //do I need to use explicit constructor?
@@ -51,7 +51,7 @@ private:
 };
 
 //==============================================================================
-class Comb
+class CombFilterBankAudioProcessor::Comb
 {
 public:
     Comb() //need to pass freq
@@ -90,6 +90,7 @@ public:
 
     size_t getNumChannels() const noexcept { return delayLines.size(); }
 
+    bool isActive() noexcept { return active; }
     void toggleActive() noexcept { active = !active; }
 
     void setFeedback(float newValue) noexcept
@@ -104,6 +105,8 @@ public:
         level = newValue;
     }
 
+    //DO I CHANGE THIS TO NOT USE A CONTEXT? IF I'M NOT USING A PROCESSORCHAIN ITS CONFUSING HOW TO BUILD A CONTEXT
+    //I CAN VERY POSSIBLY FEED IN THE AUDIO BUFFER FROM THE PROCESSBLOCK METHOD AND ACCESS THE BLOCK SOME OTHER WAY
     template <typename ProcessContext>
     void process(const ProcessContext& context) noexcept
     {
@@ -154,7 +157,7 @@ private:
 
 //==============================================================================
 CombFilterBankAudioProcessor::CombFilterBankAudioProcessor()
-#ifndef JucePlugin_PreferredChannelConfigurations
+/*#ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
                       #if ! JucePlugin_IsSynth
@@ -163,11 +166,12 @@ CombFilterBankAudioProcessor::CombFilterBankAudioProcessor()
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
                        )
-#endif
+#endif*/
 {
     bypass = true;
     LPActive, HPActive = false;
-    Comb combs[4];
+    combs.resize(4);
+    for (size_t i = 0; i < 4; ++i) combs[i] = Comb();
 }
 
 CombFilterBankAudioProcessor::~CombFilterBankAudioProcessor()
@@ -235,21 +239,39 @@ void CombFilterBankAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    bypass = true;
-    LPActive = false;
-    HPActive = false;
-
-    // This is the place where you'd normally do the guts of your plugin's
+     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
     // Make sure to reset the state if your inner loop is processing
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    for (size_t channel = 0; channel < totalNumInputChannels; ++channel)
     {
-        auto* channelData = buffer.getWritePointer (channel);
+        //auto* channelData = buffer.getWritePointer (channel);
 
-        // ..do something to the data...
+        size_t numSamples; //need to figure out how to get a block and samples from buffer
+        
+        //attempt at combing 
+        float combedSamps[4];
+        for (size_t samp = 0; samp < numSamples; ++samp) 
+        {
+            float wet;
+            size_t balanceDivisor = 0;
+            for (size_t c = 0; c < 4; ++c)
+            {
+                combedSamps[c] = 0.0f;
+                if (combs[c].isActive()) 
+                {
+                    balanceDivisor++;
+                    //I need to figure out how I'm getting data back if not passing a context?
+                    combedSamps[c] = combs[c].process(nullptr);
+                }
+                //add samples to output
+                wet += combedSamps[c];
+            }
+            wet /= balanceDivisor;
+            //output the sample into buffer here, balancing with input based on current wet/dry
+        }
     }
 }
 
