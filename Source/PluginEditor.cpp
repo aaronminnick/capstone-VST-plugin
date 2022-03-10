@@ -18,13 +18,27 @@ CombFilterBankAudioProcessorEditor::CombFilterBankAudioProcessorEditor (CombFilt
     setSize (800, 600);
 
     addAndMakeVisible(bypassButton);
-    addAndMakeVisible(preGainLabel);
+
     addAndMakeVisible(preGainSlider);
-    addAndMakeVisible(gainLabel);
+    preGainSlider.setRange(0.0, 1.0); // need to refactor for dB including skew
+    preGainSlider.setValue(0.0, juce::dontSendNotification);
+    //preGainSlider.setTextValueSuffix("dB");
+    addAndMakeVisible(preGainLabel);
+    preGainLabel.attachToComponent(&preGainSlider, false);
+
     addAndMakeVisible(gainSlider);
-    addAndMakeVisible(dryLabel);
+    gainSlider.setRange(0.0, 1.0); // need to refactor for dB including skew
+    gainSlider.setValue(0.0, juce::dontSendNotification);
+    //gainSlider.setTextValueSuffix("dB");
+    addAndMakeVisible(gainLabel);
+    gainLabel.attachToComponent(&gainSlider, false);
+
+    addAndMakeVisible(wetSlider);
+    wetSlider.setRange(0.0, 100.0);
+    wetSlider.setValue(0.0, juce::dontSendNotification);
+    wetSlider.setTextValueSuffix("%");
     addAndMakeVisible(wetLabel);
-    addAndMakeVisible(dryWetSlider);
+    wetLabel.attachToComponent(&wetSlider, true);
 
     combs.resize(4);
     for (auto& c : combs) addAndMakeVisible(c);
@@ -62,13 +76,20 @@ public:
     {
         addAndMakeVisible(activeButton);
         addAndMakeVisible(bandsButton);
-        addAndMakeVisible(pitchLabel);
-        addAndMakeVisible(feedbackLabel);
+
         addAndMakeVisible(feedbackField);
-        addAndMakeVisible(levelLabel);
+        addAndMakeVisible(feedbackLabel);
+        feedbackLabel.attachToComponent(&feedbackField, true);
+
         addAndMakeVisible(levelField);
+        addAndMakeVisible(levelLabel);
+        levelLabel.attachToComponent(&levelField, true);
+
         addAndMakeVisible(pitchBox);
-        pitchBox.setText("Pitch");
+        pitchBox.setText("");
+        pitchBox.addItemList(pitches, 0); //need to verify offset
+        addAndMakeVisible(pitchLabel);
+        pitchLabel.attachToComponent(&pitchBox, true);
     };
 
     void paint(juce::Graphics&) {};
@@ -83,6 +104,15 @@ private:
                 levelLabel {"LevelLabel", "Level"}, 
                 levelField {"LevelField", "0.0"};
     juce::ComboBox pitchBox {"PitchBox"};
+
+    juce::StringArray pitches
+    {
+        "", //need to leave index 0 untouched for no selection
+        "C2", "C#2", "D2", "D#2", "E2", "F2", "F#2", "G2", "G#2", "A2", "A#2", "B2",
+        "C3", "C#3", "D3", "D#3", "E3", "F3", "F#3", "G3", "G#3", "A3", "A#3", "B3",
+        "C4", "C#4", "D4", "D#4", "E4", "F4", "F#4", "G4", "G#4", "A4", "A#4", "B4",
+        "C5", "C#5", "D5", "D#5", "E5", "F5", "F#5", "G5", "G#5", "A5", "A#5", "B5",
+    };
 };
 
 class CombFilterBankAudioProcessorEditor::LPHPComponent : public juce::Component
@@ -91,9 +121,9 @@ public:
     LPHPComponent(juce::String filterName)
     {
         addAndMakeVisible(activeButton);
-        addAndMakeVisible(freqLabel);
-        freqLabel.setText(filterName);
         addAndMakeVisible(freqField);
+        addAndMakeVisible(freqLabel);
+        freqLabel.setText(filterName, juce::dontSendNotification);
     };
 
     void paint(juce::Graphics&) {};
@@ -101,7 +131,7 @@ public:
 
 private:
     juce::ToggleButton activeButton { "" };
-    juce::Label freqLabel {"FreqLabel", "Frequency"},
+    juce::Label freqLabel{ "FreqLabel", "Frequency" },
                 freqField {"FreqField", "0"};
 };
 

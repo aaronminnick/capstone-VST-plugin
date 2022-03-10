@@ -32,8 +32,10 @@ private:
     //add child components of main component here
 
     juce::ToggleButton bypassButton { "Bypass" };
-    juce::Label preGainLabel, gainLabel, dryLabel, wetLabel;
-    juce::Slider preGainSlider, gainSlider, dryWetSlider;
+    juce::Slider preGainSlider, gainSlider, wetSlider;
+    juce::Label preGainLabel {"PreGainLabel", "Pre-gain"}, 
+                gainLabel {"GainLabel", "Gain"},
+                wetLabel {"WetLabel", "Wet Ratio"};
 
     class CombComponent;
     std::vector<CombComponent> combs;
