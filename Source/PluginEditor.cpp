@@ -11,16 +11,26 @@
 
 //==============================================================================
 CombFilterBankAudioProcessorEditor::CombFilterBankAudioProcessorEditor (CombFilterBankAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+    : AudioProcessorEditor (&p), audioProcessor (p) //listener class?
 {
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
     setSize (800, 600);
 
-    combs.resize(4);
+    addAndMakeVisible(bypassButton);
+    addAndMakeVisible(preGainLabel);
+    addAndMakeVisible(preGainSlider);
+    addAndMakeVisible(gainLabel);
+    addAndMakeVisible(gainSlider);
+    addAndMakeVisible(dryLabel);
+    addAndMakeVisible(wetLabel);
+    addAndMakeVisible(dryWetSlider);
 
-    LPHPComponent LP;
-    LPHPComponent HP;
+    combs.resize(4);
+    for (auto& c : combs) addAndMakeVisible(c);
+
+    LPHPComponent LP("Lowpass");
+    LPHPComponent HP("Highpass");
 }
 
 CombFilterBankAudioProcessorEditor::~CombFilterBankAudioProcessorEditor()
@@ -45,33 +55,54 @@ void CombFilterBankAudioProcessorEditor::resized()
 }
 
 //==============================================================================
-class CombFilterBankAudioProcessorEditor::CombComponent : juce::Component
+class CombFilterBankAudioProcessorEditor::CombComponent : public juce::Component
 {
 public:
-    CombComponent() {};
+    CombComponent()
+    {
+        addAndMakeVisible(activeButton);
+        addAndMakeVisible(bandsButton);
+        addAndMakeVisible(pitchLabel);
+        addAndMakeVisible(feedbackLabel);
+        addAndMakeVisible(feedbackField);
+        addAndMakeVisible(levelLabel);
+        addAndMakeVisible(levelField);
+        addAndMakeVisible(pitchBox);
+        pitchBox.setText("Pitch");
+    };
 
     void paint(juce::Graphics&) {};
     void resized() {};
 
 private:
-    juce::ToggleButton active { "" },
-                       bands { "Display Bands" };
-    juce::ComboBox pitch;
-    juce::TextEditor feedback { "0.0" },
-                     level { "0.0" };
+    juce::ToggleButton activeButton { "" },
+                       bandsButton {"Display Bands"};
+    juce::Label pitchLabel {"PitchLabel", "Pitch"}, 
+                feedbackLabel {"FeedbackLabel", "Feedback"}, 
+                feedbackField {"FeedbackField", "0.0"}, 
+                levelLabel {"LevelLabel", "Level"}, 
+                levelField {"LevelField", "0.0"};
+    juce::ComboBox pitchBox {"PitchBox"};
 };
 
-class CombFilterBankAudioProcessorEditor::LPHPComponent : juce::Component
+class CombFilterBankAudioProcessorEditor::LPHPComponent : public juce::Component
 {
 public:
-    LPHPComponent() {};
+    LPHPComponent(juce::String filterName)
+    {
+        addAndMakeVisible(activeButton);
+        addAndMakeVisible(freqLabel);
+        freqLabel.setText(filterName);
+        addAndMakeVisible(freqField);
+    };
 
     void paint(juce::Graphics&) {};
     void resized() {};
 
 private:
-    juce::ToggleButton active { "" };
-    juce::TextEditor frequency { "0" };
+    juce::ToggleButton activeButton { "" };
+    juce::Label freqLabel {"FreqLabel", "Frequency"},
+                freqField {"FreqField", "0"};
 };
 
 //need to figure out how I'm going to pass the graphics to this component, as this needs DSP info
