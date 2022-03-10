@@ -105,8 +105,9 @@ public:
         level = newValue;
     }
 
-    //DO I CHANGE THIS TO NOT USE A CONTEXT? IF I'M NOT USING A PROCESSORCHAIN ITS CONFUSING HOW TO BUILD A CONTEXT
-    //I CAN VERY POSSIBLY FEED IN THE AUDIO BUFFER FROM THE PROCESSBLOCK METHOD AND ACCESS THE BLOCK SOME OTHER WAY
+    //I need to configure this to operate on one sample, vs a block
+
+    //float processSample(size_t ch, float currentSamp)
     template <typename ProcessContext>
     void process(const ProcessContext& context) noexcept
     {
