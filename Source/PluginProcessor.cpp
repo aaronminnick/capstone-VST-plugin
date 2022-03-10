@@ -105,41 +105,19 @@ public:
         level = newValue;
     }
 
-    //I need to configure this to operate on one sample, vs a block
-
-    //float processSample(size_t ch, float currentSamp)
-    template <typename ProcessContext>
-    void process(const ProcessContext& context) noexcept
+    float processSample(size_t ch, float currentSamp) noexcept
     {
-        auto& inputBlock = context.getInputBlock();
-        auto& outputBlock = context.getOutputBlock();
-        auto numSamples = outputBlock.getNumSamples();
-        auto numChannels = outputBlock.getNumChannels();
+        auto& dline = delayLines[ch];
+        auto& filter = filters[ch];
 
-        jassert(inputBlock.getNumSamples() == numSamples);
-        jassert(inputBlock.getNumChannels() == numChannels);
-
-        for (size_t ch = 0; ch < numChannels; ++ch)
-        {
-            auto* input = inputBlock.getChannelPointer(ch);
-            auto* output = outputBlock.getChannelPointer(ch);
-            auto& dline = delayLines[ch];
-            auto& filter = filters[ch];
-
-            for (size_t samp = 0; samp < numSamples; ++samp)
-            {
-                auto delayedSample = filter.processSample(dline.get(delayTimeSamples));
-                auto inputSample = input[samp];
-                //I don't know enough math to understand hyperbolic tangent, but this is supposed to balance sum
-                //if my comb doesn't work correctly, I suspect this may need closer examination
-                auto dlineInputSample = std::tanh(inputSample + feedback * delayedSample);
-                dline.push(dlineInputSample);
-                //below may need balancing or rethinking if filter doesn't sound right
-                //I may just need to pass delayedSample * level and add inputSample in later dry/wet stage
-                auto outputSample = (inputSample + delayedSample) * level;
-                output[samp] = outputSample;
-            }
-        }
+        auto delayedSample = filter.processSample(dline.get(delayTimeSamples));
+        //I don't know enough math to understand hyperbolic tangent, but this is supposed to balance sum
+        //if my comb doesn't work correctly, I suspect this may need closer examination
+        auto dlineInputSample = std::tanh(currentSamp + (feedback * delayedSample));
+        dline.push(dlineInputSample);
+        //below may need balancing or rethinking if filter doesn't sound right
+        //return (currentSamp + delayedSample) * level;
+        return delayedSample * level;
     }
 
 private:
@@ -255,7 +233,7 @@ void CombFilterBankAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
                 {
                     balanceDivisor++;
                     //I need to figure out how I'm getting data back if not passing a context?
-                    combedSamps[c] = combs[c].process(nullptr);
+                    combedSamps[c] = combs[c].processSample(channel, *mainInputOutput.getReadPointer(channel, samp));
                 }
                 //add samples to output
                 wetSamp += combedSamps[c];
