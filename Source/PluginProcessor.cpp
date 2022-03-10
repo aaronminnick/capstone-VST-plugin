@@ -156,20 +156,14 @@ private:
 };
 
 //==============================================================================
-CombFilterBankAudioProcessor::CombFilterBankAudioProcessor()
-/*#ifndef JucePlugin_PreferredChannelConfigurations
-     : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                     #endif
-                       )
-#endif*/
+//why is this happy to come after private classes when editor isn't??
+CombFilterBankAudioProcessor::CombFilterBankAudioProcessor() 
+    : AudioProcessor(BusesProperties().withInput("Input", juce::AudioChannelSet::stereo())
+                                      .withOutput("Output", juce::AudioChannelSet::stereo()))
 {
     bypass = true;
-    LPActive, HPActive = false;
+    LPActive = false;
+    HPActive = false;
     combs.resize(4);
     for (size_t i = 0; i < 4; ++i) combs[i] = Comb();
 }
@@ -232,12 +226,12 @@ bool CombFilterBankAudioProcessor::isBusesLayoutSupported (const BusesLayout& la
 void CombFilterBankAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
+
+    auto mainInputOutput = getBusBuffer(buffer, true, 0);
 
     // prevents feedback if outputs > inputs
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+    //for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+        //buffer.clear (i, 0, buffer.getNumSamples());
 
      // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
@@ -245,17 +239,13 @@ void CombFilterBankAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
-    for (size_t channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        //auto* channelData = buffer.getWritePointer (channel);
-
-        size_t numSamples; //need to figure out how to get a block and samples from buffer
-        
+    for (size_t channel = 0; channel < mainInputOutput.getNumChannels(); ++channel)
+    {       
         //attempt at combing 
-        float combedSamps[4];
-        for (size_t samp = 0; samp < numSamples; ++samp) 
+        float combedSamps[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        for (size_t samp = 0; samp < buffer.getNumSamples(); ++samp)
         {
-            float wet;
+            float wetSamp = 0.0f;
             size_t balanceDivisor = 0;
             for (size_t c = 0; c < 4; ++c)
             {
@@ -267,10 +257,12 @@ void CombFilterBankAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
                     combedSamps[c] = combs[c].process(nullptr);
                 }
                 //add samples to output
-                wet += combedSamps[c];
+                wetSamp += combedSamps[c];
             }
-            wet /= balanceDivisor;
+            wetSamp /= balanceDivisor;
             //output the sample into buffer here, balancing with input based on current wet/dry
+            float wetLevel = 0.5f; //hard coded 50% wet for now until I link slider
+            *mainInputOutput.getWritePointer(channel, samp) = *mainInputOutput.getReadPointer(channel, samp) * (1.0f - wetLevel) + wetSamp * wetLevel;
         }
     }
 }
